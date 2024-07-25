@@ -54,3 +54,5 @@ venv.bak/
 /data/sht
 /source/*.ipynb
 .virtual_documents/
+*.keras
+/models
