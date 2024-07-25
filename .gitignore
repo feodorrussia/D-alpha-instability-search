@@ -53,3 +53,4 @@ venv.bak/
 /source/SHT_reader_test.ipynb
 /data/sht
 /source/*.ipynb
+.virtual_documents/
