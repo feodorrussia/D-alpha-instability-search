@@ -56,7 +56,7 @@ class Slice:
         return self.l == self.r
 
 
-def process_fragments(data: np.array, mark_data: np.array, edge=10, scale=np.exp(1), step_out=10) -> np.array:
+def process_fragments(data: np.array, mark_data: np.array, length_edge=10, distance_edge=25, scale=1.5, step_out=10) -> np.array:
     proc_slice = Slice(0, 0)
     cur_slice = Slice(0, 1)
     f_fragment = False
@@ -68,17 +68,14 @@ def process_fragments(data: np.array, mark_data: np.array, edge=10, scale=np.exp
         elif f_fragment:
             # print(start_ind, end_ind)
             if scale <= 1:
-                if not cur_slice.check_length(edge):
+                if not cur_slice.check_length(length_edge):
                     mark_data[cur_slice.l: cur_slice.r] = 0.0
-                    if not proc_slice.is_null():
-                        mark_data[proc_slice.l: proc_slice.r] = 1.0
-                        proc_slice.collapse_borders()
-                elif not proc_slice.collide_slices(cur_slice, edge):
+                elif not proc_slice.collide_slices(cur_slice, distance_edge):
                     mark_data[proc_slice.l: proc_slice.r] = 1.0
                     proc_slice.copy(cur_slice)
             elif scale:
                 mark_data[cur_slice.l: cur_slice.r] = 0.0
-                if cur_slice.check_length(edge):
+                if cur_slice.check_length(length_edge):
                     borders = get_borders(data[cur_slice.l: cur_slice.r], scale)
                     # print(boards)
                     borders[0] = max(borders[0] + cur_slice.l - step_out, 0)
@@ -90,7 +87,7 @@ def process_fragments(data: np.array, mark_data: np.array, edge=10, scale=np.exp
             cur_slice.collapse_borders()
         elif not f_fragment:
             cur_slice.collapse_borders()
-            if not proc_slice.is_null():
+            if proc_slice.is_null():
                 proc_slice.copy(cur_slice)
             
         cur_slice.step()
