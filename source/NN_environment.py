@@ -15,45 +15,230 @@ def down_to_zero(data: np.array, edge: float) -> np.array:
     return filter_values(data)
 
 
-def get_boards(data: np.array, scale=np.exp(1)):
+def get_borders(data: np.array, scale=np.exp(1)):
     loc_max_ind = np.argmax(data)
     dist_ind = np.argsort(np.abs(data - data[loc_max_ind] / scale))
     return [dist_ind[dist_ind <= loc_max_ind][0], dist_ind[dist_ind >= loc_max_ind][0]]
 
 
-def process_fragments(data: np.array, mark_data: np.array, edge=10, scale=np.exp(1), step_out=10) -> np.array:
-    # edge = 50
+class Slice:
+    def __init__(self, start_index=0, end_index=1):
+        self.l = start_index
+        self.r = end_index
 
-    start_ind = 0
-    end_ind = 1
+    def set_borders(self, start_index: int, end_index: int) -> None:
+        self.l = start_index
+        self.r = end_index
+
+    def check_length(self, len_edge: int) -> bool:
+        return self.r - self.l > len_edge
+
+    def check_dist(self, other, dist_edge: int) -> bool:
+        return other.l - self.r > dist_edge
+
+    def collide_slices(self, other, dist_edge: int) -> None:
+        if self.check_dist(other, dist_edge):
+            self.r = other.r
+
+    def step(self):
+        self.r += 1
+
+    def collapse_borders(self):
+        self.l = self.r
+
+
+def process_fragments(data: np.array, mark_data: np.array, edge=10, scale=np.exp(1), step_out=10) -> np.array:
+    cur_slice = Slice()
     f_fragment = False
 
-    while end_ind < mark_data.shape[0]:
-        if mark_data[end_ind] == 1.0:
+    while cur_slice.r < mark_data.shape[0]:
+        if mark_data[cur_slice.r] == 1.0:
             if not f_fragment:
                 f_fragment = True
         elif f_fragment:
-            print(start_ind, end_ind)
-            mark_data[start_ind: end_ind] = 0.0
-            if end_ind - start_ind > edge:
-                boards = get_boards(data[start_ind: end_ind], scale)
-                print(boards)
-                boards[0] = max(boards[0] + start_ind - step_out, 0)
-                boards[1] = min(boards[1] + start_ind + step_out, mark_data.shape[0])
+            # print(start_ind, end_ind)
+            if scale == 0 and not cur_slice.check_length(edge):
+                mark_data[cur_slice.l: cur_slice.r] = 0.0
+            elif scale:
+                mark_data[cur_slice.l: cur_slice.r] = 0.0
+                if cur_slice.check_length(edge):
+                    borders = get_borders(data[cur_slice.l: cur_slice.r], scale)
+                    # print(boards)
+                    borders[0] = max(borders[0] + cur_slice.l - step_out, 0)
+                    borders[1] = min(borders[1] + cur_slice.l, mark_data.shape[0])
 
-                mark_data[boards[0]:boards[1]] = 1.0
+                    mark_data[borders[0]:borders[1]] = 1.0
             
             f_fragment = False
-            start_ind = end_ind
+            cur_slice.collapse_borders()
         elif not f_fragment:
-            start_ind = end_ind
+            cur_slice.collapse_borders()
             
-        end_ind += 1
+        cur_slice.step()
 
     return mark_data
 
 
+def focal_loss(y_true, y_pred, alpha=0.1, gamma=2.0):
+    bce = K.binary_crossentropy(y_true, y_pred)
+
+    y_pred = K.clip(y_pred, K.epsilon(), 1. - K.epsilon())
+    p_t = (y_true * y_pred) + ((1 - y_true) * (1 - y_pred))
+
+    alpha_factor = y_true * alpha + ((1 - alpha) * (1 - y_true))
+    modulating_factor = K.pow((1 - p_t), gamma)
+
+    # compute the final loss and return
+    return K.mean(alpha_factor * modulating_factor * bce, axis=-1)
+
+
+def dice_bce_loss(y_pred, y_true):
+    def dice_loss(y_true, y_pred):
+        y_true = tf.cast(y_true, tf.float32)
+        y_pred = tf.math.sigmoid(y_pred)
+        numerator = 2 * tf.reduce_sum(y_true * y_pred)
+        denominator = tf.reduce_sum(y_true + y_pred)
+
+        return 1 - numerator / denominator
+
+    total_loss = 0.25 * dice_loss(y_pred, y_true) + tf.keras.losses.binary_crossentropy(y_pred, y_true)
+    return total_loss
+
+
+def get_prediction_unet(data: np.array, POINTS_DIM=1024, ckpt_v=0, old=False) -> np.array:
+    checkpoint_filepath = f'models/ckpt/checkpoint_{ckpt_v}.weights.h5'
+
+    precision = tf.keras.metrics.Precision()
+    recall = tf.keras.metrics.Recall()
+
+    if old:
+        model = unet_model_old(POINTS_DIM)
+    else:
+        model = unet_model(POINTS_DIM)
+
+    model.compile(optimizer='adam', loss=dice_bce_loss,
+                  metrics=['acc', precision, recall])
+    model.load_weights(checkpoint_filepath)
+
+    l_edge = 0
+    step = 256
+
+    prediction_result = np.zeros(data.shape[0])
+
+    while l_edge + POINTS_DIM < data.shape[0]:
+        predictions = model.predict(np.array([normalise_series(data[l_edge:l_edge + POINTS_DIM])]), verbose=0)
+        for i in range(0, POINTS_DIM):
+            prediction_result[l_edge + i] = predictions[0][i]
+        l_edge += step
+
+    if l_edge + POINTS_DIM - step != data.shape[0] - 1:
+        predictions = model.predict(np.array([normalise_series(data[data.shape[0] - POINTS_DIM:])]), verbose=0)
+        for i in range(0, POINTS_DIM):
+            prediction_result[data.shape[0] - POINTS_DIM + i] = predictions[0][i]
+
+    prediction_result = down_to_zero(prediction_result, edge=0.5)
+    prediction_result = process_fragments(data, prediction_result, edge=10, scale=0)
+
+    return prediction_result
+
+
 def unet_model(POINTS_DIM=1024):
+
+    #Входной слой
+    inputs = tf.keras.layers.Input(shape=(POINTS_DIM, 1,))
+    conv_1 = tf.keras.layers.Conv1D(64, 4, 
+                                    activation=tf.keras.layers.LeakyReLU(),
+                                    strides=2, padding='same', 
+                                    kernel_initializer='glorot_normal',
+                                    use_bias=False)(inputs)
+    #Сворачиваем
+    conv_1_1 = tf.keras.layers.Conv1D(128, 4, 
+                                      activation=tf.keras.layers.LeakyReLU(), 
+                                      strides=2,
+                                      padding='same', 
+                                      kernel_initializer='glorot_normal',
+                                      use_bias=False)(conv_1)
+    batch_norm_1 = tf.keras.layers.BatchNormalization()(conv_1_1)
+
+    #2
+    conv_2 = tf.keras.layers.Conv1D(256, 4, 
+                                    activation=tf.keras.layers.LeakyReLU(), 
+                                    strides=2,
+                                    padding='same', 
+                                    kernel_initializer='glorot_normal',
+                                    use_bias=False)(batch_norm_1)
+    batch_norm_2 = tf.keras.layers.BatchNormalization()(conv_2)
+
+    #3
+    conv_3 = tf.keras.layers.Conv1D(512, 4, 
+                                    activation=tf.keras.layers.LeakyReLU(), 
+                                    strides=2,
+                                    padding='same', 
+                                    kernel_initializer='glorot_normal',
+                                    use_bias=False)(batch_norm_2)
+    batch_norm_3 = tf.keras.layers.BatchNormalization()(conv_3)
+
+    #4
+    conv_4 = tf.keras.layers.Conv1D(512, 4, 
+                                    activation=tf.keras.layers.LeakyReLU(), 
+                                    strides=2,
+                                    padding='same', 
+                                    kernel_initializer='glorot_normal',
+                                    use_bias=False)(batch_norm_3)
+    batch_norm_4 = tf.keras.layers.BatchNormalization()(conv_4)
+
+    #Разворачиваем
+    #1
+    up_1 = tf.keras.layers.Concatenate()([tf.keras.layers.Conv1DTranspose(512, 4, activation='relu', strides=2,
+                                                                          padding='same',
+                                                                          kernel_initializer='glorot_normal',
+                                                                          use_bias=False)(conv_4), conv_3])
+    batch_up_1 = tf.keras.layers.BatchNormalization()(up_1)
+
+    #Добавим Dropout от переобучения
+    batch_up_1 = tf.keras.layers.Dropout(0.25)(batch_up_1, training=True)
+
+    #2
+    up_2 = tf.keras.layers.Concatenate()([tf.keras.layers.Conv1DTranspose(256, 4, activation='relu', strides=2,
+                                                                          padding='same',
+                                                                          kernel_initializer='glorot_normal',
+                                                                          use_bias=False)(batch_up_1), conv_2])
+    batch_up_2 = tf.keras.layers.BatchNormalization()(up_2)
+    batch_up_2 = tf.keras.layers.Dropout(0.25)(batch_up_2, training=True)
+
+
+
+
+    #3
+    up_3 = tf.keras.layers.Concatenate()([tf.keras.layers.Conv1DTranspose(128, 4, activation='relu', strides=2,
+                                                                          padding='same',
+                                                                          kernel_initializer='glorot_normal',
+                                                                          use_bias=False)(batch_up_2), conv_1_1])
+    batch_up_3 = tf.keras.layers.BatchNormalization()(up_3)
+    batch_up_3 = tf.keras.layers.Dropout(0.25)(batch_up_3, training=True)
+
+
+
+
+    #4
+    up_4 = tf.keras.layers.Concatenate()([tf.keras.layers.Conv1DTranspose(64, 4, activation='relu', strides=2,
+                                                                          padding='same',
+                                                                          kernel_initializer='glorot_normal',
+                                                                          use_bias=False)(batch_up_3), conv_1])
+    batch_up_4 = tf.keras.layers.BatchNormalization()(up_4)
+
+
+    #Выходной слой
+    max_pool = tf.keras.layers.MaxPooling1D(pool_size=2)(batch_up_4)
+    flat = tf.keras.layers.Flatten()(max_pool)
+    flat = tf.keras.layers.Dropout(0.2)(flat, training=True)
+    outputs = tf.keras.layers.Dense(POINTS_DIM, activation="sigmoid")(flat)
+
+    model = tf.keras.Model(inputs=inputs, outputs=outputs)
+    return model
+
+
+def unet_model_old(POINTS_DIM=1024):
     # Входной слой
     inputs = tf.keras.layers.Input(shape=(POINTS_DIM, 1,))
     conv_1 = tf.keras.layers.Conv1D(64, 4,
@@ -170,62 +355,3 @@ def unet_model(POINTS_DIM=1024):
 
     model = tf.keras.Model(inputs=inputs, outputs=outputs)
     return model
-
-
-def focal_loss(y_true, y_pred, alpha=0.1, gamma=2.0):
-    bce = K.binary_crossentropy(y_true, y_pred)
-
-    y_pred = K.clip(y_pred, K.epsilon(), 1. - K.epsilon())
-    p_t = (y_true * y_pred) + ((1 - y_true) * (1 - y_pred))
-
-    alpha_factor = y_true * alpha + ((1 - alpha) * (1 - y_true))
-    modulating_factor = K.pow((1 - p_t), gamma)
-
-    # compute the final loss and return
-    return K.mean(alpha_factor * modulating_factor * bce, axis=-1)
-
-
-def dice_bce_loss(y_pred, y_true):
-    def dice_loss(y_true, y_pred):
-        y_true = tf.cast(y_true, tf.float32)
-        y_pred = tf.math.sigmoid(y_pred)
-        numerator = 2 * tf.reduce_sum(y_true * y_pred)
-        denominator = tf.reduce_sum(y_true + y_pred)
-
-        return 1 - numerator / denominator
-
-    total_loss = 0.25 * dice_loss(y_pred, y_true) + tf.keras.losses.binary_crossentropy(y_pred, y_true)
-    return total_loss
-
-
-def get_prediction_unet(data: np.array, POINTS_DIM=1024, ckpt_v=0) -> np.array:
-    checkpoint_filepath = f'models/ckpt/checkpoint_{ckpt_v}.weights.h5'
-
-    precision = tf.keras.metrics.Precision()
-    recall = tf.keras.metrics.Recall()
-
-    model = unet_model(POINTS_DIM)
-    model.compile(optimizer='adam', loss=dice_bce_loss,
-                  metrics=['acc', precision, recall])
-    model.load_weights(checkpoint_filepath)
-
-    l_edge = 0
-    step = 512
-
-    prediction_result = np.zeros(data.shape[0])
-
-    while l_edge + POINTS_DIM < data.shape[0]:
-        predictions = model.predict(np.array([normalise_series(data[l_edge:l_edge + POINTS_DIM])]), verbose=0)
-        for i in range(0, POINTS_DIM):
-            prediction_result[l_edge + i] = predictions[0][i]
-        l_edge += step
-
-    if l_edge + POINTS_DIM - step != data.shape[0] - 1:
-        predictions = model.predict(np.array([normalise_series(data[data.shape[0] - POINTS_DIM:])]), verbose=0)
-        for i in range(0, POINTS_DIM):
-            prediction_result[data.shape[0] - POINTS_DIM + i] = predictions[0][i]
-
-    prediction_result = down_to_zero(prediction_result, edge=0.2)
-    prediction_result = process_fragments(data, prediction_result, edge=10, scale=1.5)
-
-    return prediction_result
