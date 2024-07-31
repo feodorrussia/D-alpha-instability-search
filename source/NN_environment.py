@@ -22,7 +22,7 @@ def get_borders(data: np.array, scale=np.exp(1)):
 
 
 class Slice:
-    def __init__(self, start_index=0, end_index=1):
+    def __init__(self, start_index=0, end_index=0):
         self.l = start_index
         self.r = end_index
 
@@ -30,15 +30,21 @@ class Slice:
         self.l = start_index
         self.r = end_index
 
+    def copy(self, other):
+        self.l = other.l
+        self.r = other.r
+
     def check_length(self, len_edge: int) -> bool:
         return self.r - self.l > len_edge
 
     def check_dist(self, other, dist_edge: int) -> bool:
         return other.l - self.r > dist_edge
 
-    def collide_slices(self, other, dist_edge: int) -> None:
-        if self.check_dist(other, dist_edge):
+    def collide_slices(self, other, dist_edge: int) -> bool:
+        if not self.check_dist(other, dist_edge):
             self.r = other.r
+            return True
+        return False
 
     def step(self):
         self.r += 1
@@ -46,9 +52,13 @@ class Slice:
     def collapse_borders(self):
         self.l = self.r
 
+    def is_null(self) -> bool:
+        return self.l == self.r
+
 
 def process_fragments(data: np.array, mark_data: np.array, edge=10, scale=np.exp(1), step_out=10) -> np.array:
-    cur_slice = Slice()
+    proc_slice = Slice(0, 0)
+    cur_slice = Slice(0, 1)
     f_fragment = False
 
     while cur_slice.r < mark_data.shape[0]:
@@ -57,8 +67,15 @@ def process_fragments(data: np.array, mark_data: np.array, edge=10, scale=np.exp
                 f_fragment = True
         elif f_fragment:
             # print(start_ind, end_ind)
-            if scale == 0 and not cur_slice.check_length(edge):
-                mark_data[cur_slice.l: cur_slice.r] = 0.0
+            if scale <= 1:
+                if not cur_slice.check_length(edge):
+                    mark_data[cur_slice.l: cur_slice.r] = 0.0
+                    if not proc_slice.is_null():
+                        mark_data[proc_slice.l: proc_slice.r] = 1.0
+                        proc_slice.collapse_borders()
+                elif not proc_slice.collide_slices(cur_slice, edge):
+                    mark_data[proc_slice.l: proc_slice.r] = 1.0
+                    proc_slice.copy(cur_slice)
             elif scale:
                 mark_data[cur_slice.l: cur_slice.r] = 0.0
                 if cur_slice.check_length(edge):
@@ -73,6 +90,8 @@ def process_fragments(data: np.array, mark_data: np.array, edge=10, scale=np.exp
             cur_slice.collapse_borders()
         elif not f_fragment:
             cur_slice.collapse_borders()
+            if not proc_slice.is_null():
+                proc_slice.copy(cur_slice)
             
         cur_slice.step()
 
@@ -136,8 +155,8 @@ def get_prediction_unet(data: np.array, POINTS_DIM=1024, ckpt_v=0, old=False) ->
         for i in range(0, POINTS_DIM):
             prediction_result[data.shape[0] - POINTS_DIM + i] = predictions[0][i]
 
-    prediction_result = down_to_zero(prediction_result, edge=0.5)
-    prediction_result = process_fragments(data, prediction_result, edge=10, scale=0)
+    # prediction_result = down_to_zero(prediction_result, edge=0.5)
+    # prediction_result = process_fragments(data, prediction_result, edge=10, scale=0)
 
     return prediction_result
 
