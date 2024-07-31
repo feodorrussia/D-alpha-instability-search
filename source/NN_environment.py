@@ -21,27 +21,36 @@ def get_boards(data: np.array, scale=np.exp(1)):
     return [dist_ind[dist_ind <= loc_max_ind][0], dist_ind[dist_ind >= loc_max_ind][0]]
 
 
-def process_fragments(data: np.array, edge=10, scale=np.exp(1), step_out=10) -> np.array:
+def process_fragments(data: np.array, mark_data: np.array, edge=10, scale=np.exp(1), step_out=10) -> np.array:
     # edge = 50
 
     start_ind = 0
-    end_ind = 0
+    end_ind = 1
+    f_fragment = False
 
-    while end_ind < data.shape[0]:
-        if abs(data[end_ind] - 1.0) > 0.5:
-            if start_ind != end_ind:
-                data[start_ind: end_ind] = 0.0
+    while end_ind < mark_data.shape[0]:
+        if mark_data[end_ind] == 1.0:
+            if not f_fragment:
+                f_fragment = True
+        elif f_fragment:
+            print(start_ind, end_ind)
+            mark_data[start_ind: end_ind] = 0.0
+            if end_ind - start_ind > edge:
+                boards = get_boards(data[start_ind: end_ind], scale)
+                print(boards)
+                boards[0] = max(boards[0] + start_ind - step_out, 0)
+                boards[1] = min(boards[1] + start_ind + step_out, mark_data.shape[0])
 
-                if end_ind - start_ind > edge:
-                    boards = get_boards(data[start_ind: end_ind], scale)
-                    boards[0] = max(boards[0] + start_ind - step_out, 0)
-                    boards[1] = min(boards[1] + start_ind + step_out, data.shape[0])
-
-                    data[boards[0]:boards[1]] = 1.0
+                mark_data[boards[0]:boards[1]] = 1.0
+            
+            f_fragment = False
             start_ind = end_ind
+        elif not f_fragment:
+            start_ind = end_ind
+            
         end_ind += 1
 
-    return data
+    return mark_data
 
 
 def unet_model(POINTS_DIM=1024):
@@ -217,6 +226,6 @@ def get_prediction_unet(data: np.array, POINTS_DIM=1024, ckpt_v=0) -> np.array:
             prediction_result[data.shape[0] - POINTS_DIM + i] = predictions[0][i]
 
     prediction_result = down_to_zero(prediction_result, edge=0.2)
-    # prediction_result = process_fragments(prediction_result, edge=10, scale=1.5)
+    prediction_result = process_fragments(data, prediction_result, edge=10, scale=1.5)
 
     return prediction_result
