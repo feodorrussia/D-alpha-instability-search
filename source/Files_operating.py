@@ -80,6 +80,101 @@ def sht_rewrite(filepath='D:\Edu\Lab\D-alpha-instability-search/data/sht/', file
         return e
 
 
+def save_toSHT(data_dict: dict, result_filename="default_data.SHT", result_path="D:/Edu/Lab/D-alpha-instability-search/data/sht/marked/") -> str:
+    """
+
+    :param data_dict: keys: df - data to pack w/ ch1, ch1_marked & ch1_ai_marked columns, meta - list of dicts (3 items w/ keys: comment, unit, yRes)
+    :param result_filename:
+    :param result_path: 
+    :return: ok/Exception
+    """
+    if not os.path.exists(result_path):
+        os.mkdir(result_path)
+
+    try:
+        df = data_dict["df"]
+        meta_data = data_dict["meta"]
+
+        to_pack = {
+            "D-alpha, chord=50 cm": {
+                'comment': meta_data[0]["comment"],
+                'unit': meta_data[0]["unit"],
+                'tMin': df.t.min(),  # minimum time
+                'tMax': df.t.max(),  # maximum time
+                'offset': 0.0,  # ADC zero level offset
+                'yRes': meta_data[0]["yRes"],  # ADC resolution: 0.0001 Volt per adc bit
+                'y': df.ch1.to_list()
+            },
+            "Mark": {
+                'comment': meta_data[1]["comment"],
+                'unit': meta_data[1]["unit"],
+                'tMin': df.t.min(),  # minimum time
+                'tMax': df.t.max(),  # maximum time
+                'offset': 0.0,  # ADC zero level offset
+                'yRes': meta_data[1]["yRes"],  # ADC resolution: 0.0001 Volt per adc bit
+                'y': df.ch1_marked.to_list()
+            },
+            "AI prediction": {
+                'comment': meta_data[2]["comment"],
+                'unit': meta_data[2]["unit"],
+                'tMin': df.t.min(),  # minimum time
+                'tMax': df.t.max(),  # maximum time
+                'offset': 0.0,  # ADC zero level offset
+                'yRes': meta_data[2]["yRes"],  # ADC resolution: 0.0001 Volt per adc bit
+                'y': df.ch1_ai_marked.to_list()
+            },
+        }
+
+        packed = shtRipper.ripper.write(path="D:/Edu/Lab/D-alpha-instability-search/data/sht/marked/",
+                                        filename=result_filename, data=to_pack)
+        if len(packed) != 0:
+            raise Exception(f'Packed error = "{packed}"')
+
+        return "ok"
+    except Exception as e:
+        return str(e)
+
+
+def export_toSHT(filepath='../data/d-alpha/df/', filename="sht44184.scv",
+                 result_path="D:/Edu/Lab/D-alpha-instability-search/data/sht/marked/") -> str:
+    """
+    Function to export D-alpha data from SHT files to txt/csv/dat/... files
+    :param filepath: Full path to file
+    :param filename: Filename w/o format
+    :param result_path: Path to save the result file
+    :param result_format: Format of the result file
+    :return: ok/Exception
+    """
+    if not os.path.exists(result_path):
+        os.mkdir(result_path)
+
+    try:
+        df = pd.read_csv(filepath + filename, sep=",")
+
+        to_pack = {}
+
+        for column_name in df.columns[1:]:
+            to_pack[column_name] = {
+                'comment': '',
+                'unit': 'U(V)',
+                'tMin': df.t.min(),  # minimum time
+                'tMax': df.t.max(),  # maximum time
+                'offset': 0.0,  # ADC zero level offset
+                'yRes': 0.0001,  # ADC resolution: 0.0001 Volt per adc bit
+                'y': df[column_name]
+
+            }
+
+        packed = shtRipper.ripper.write(path=result_path, filename=filename[:-4] + '.SHT', data=to_pack)
+
+        if len(packed) != 0:
+            raise Exception(f'Packed error = "{packed}"')
+
+        return "ok"
+    except Exception as e:
+        return str(e)
+
+
 def rewrite_sht_fromDir(dir_path, result_path="../data/d-alpha/", result_format="txt") -> None:
     """
     Function to export data from entire dir
@@ -99,4 +194,3 @@ def rewrite_sht_fromDir(dir_path, result_path="../data/d-alpha/", result_format=
             print("-", end="")
 
     print("|")
-
