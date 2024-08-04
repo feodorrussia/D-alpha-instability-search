@@ -56,3 +56,5 @@ venv.bak/
 .virtual_documents/
 *.keras
 /models
+/data/d-alpha
+/data/intervals
