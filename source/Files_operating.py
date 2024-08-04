@@ -85,7 +85,7 @@ def save_toSHT(data_dict: dict, result_filename="default_data.SHT", result_path=
 
     :param data_dict: keys: df - data to pack w/ ch1, ch1_marked & ch1_ai_marked columns, meta - list of dicts (3 items w/ keys: comment, unit, yRes)
     :param result_filename:
-    :param result_path: 
+    :param result_path:
     :return: ok/Exception
     """
     if not os.path.exists(result_path):
