@@ -52,7 +52,18 @@ def read_dataFile(file_path: str, id_file="") -> pd.DataFrame:
     return data.dropna(axis=1)
 
 
-def sht_rewrite(filepath='D:\Edu\Lab\D-alpha-instability-search/data/sht/', filename="sht44168",
+def load_sht(filepath='D:/Edu/Lab/D-alpha-instability-search/data/sht/', filename="sht44168") -> pd.DataFrame:
+    if ".sht" in filename.lower():
+        res = shtRipper.ripper.read(filepath + filename)
+    else:
+        res = shtRipper.ripper.read(filepath + filename + ".SHT")
+
+    data = np.array([res[res.keys()[0]]["x"]] + [res[ch]["y"] for ch in res.keys()])
+    df = pd.DataFrame(data.transpose(), columns=["t"] + res.keys())
+    return df
+
+
+def sht_rewrite(filepath='D:/Edu/Lab/D-alpha-instability-search/data/sht/', filename="sht44168",
                 result_path="../data/d-alpha/", result_format="txt") -> str:
     """
     Function to export D-alpha data from SHT files to txt/csv/dat/... files
@@ -80,7 +91,8 @@ def sht_rewrite(filepath='D:\Edu\Lab\D-alpha-instability-search/data/sht/', file
         return e
 
 
-def save_toSHT(data_dict: dict, result_filename="default_data.SHT", result_path="D:/Edu/Lab/D-alpha-instability-search/data/sht/marked/") -> str:
+def save_toSHT(data_dict: dict, result_filename="default_data.SHT",
+               result_path="D:/Edu/Lab/D-alpha-instability-search/data/sht/marked/") -> str:
     """
 
     :param data_dict: keys: df - data to pack w/ ch1, ch1_marked & ch1_ai_marked columns, meta - list of dicts (3 items w/ keys: comment, unit, yRes)
