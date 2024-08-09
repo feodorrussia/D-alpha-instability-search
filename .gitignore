@@ -57,6 +57,7 @@ venv.bak/
 *.keras
 /models
 /data/d-alpha
-/data/intervals
+#/data/intervals
 /img
 /test.py
+/data/intervals/*.dat
