@@ -158,6 +158,37 @@ def get_prediction_unet(data: np.array, POINTS_DIM=1024, ckpt_v=0, old=False) ->
     return prediction_result
 
 
+def get_prediction_multi_unet(data: np.array, POINTS_DIM=1024, NUM_CLASSES=2, ckpt_v=0) -> np.array:
+    checkpoint_filepath = f'models/ckpt/checkpoint_{ckpt_v}_multi.weights.h5'
+
+    precision = tf.keras.metrics.Precision()
+    recall = tf.keras.metrics.Recall()
+
+    model.compile(optimizer='adam', loss=dice_bce_loss,
+                  metrics=['acc', precision, recall])
+    model.load_weights(checkpoint_filepath)
+
+    l_edge = 0
+    step = 256
+
+    prediction_result = np.zeros(NUM_CLASSES, data.shape[0])
+
+    while l_edge + POINTS_DIM < data.shape[0]:
+        predictions = model.predict(np.array([normalise_series(data[l_edge:l_edge + POINTS_DIM])]), verbose=0)
+        for i in range(0, POINTS_DIM):
+            prediction_result[0, l_edge + i] = predictions[0, 0, i]
+            prediction_result[1, l_edge + i] = predictions[0, 1, i]
+        l_edge += step
+
+    if l_edge + POINTS_DIM - step != data.shape[0] - 1:
+        predictions = model.predict(np.array([normalise_series(data[data.shape[0] - POINTS_DIM:])]), verbose=0)
+        for i in range(0, POINTS_DIM):
+            prediction_result[0, data.shape[0] - POINTS_DIM + i] = predictions[0, 0, i]
+            prediction_result[1, data.shape[0] - POINTS_DIM + i] = predictions[0, 1, i]
+
+    return prediction_result
+
+
 def unet_multi_model(POINTS_DIM, NUM_CLASSES):
 
     #Входной слой
