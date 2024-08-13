@@ -158,6 +158,97 @@ def get_prediction_unet(data: np.array, POINTS_DIM=1024, ckpt_v=0, old=False) ->
     return prediction_result
 
 
+def unet_multi_model(POINTS_DIM, NUM_CLASSES):
+
+    #Входной слой
+    inputs = tf.keras.layers.Input(shape=(POINTS_DIM, 1,))
+    conv_1 = tf.keras.layers.Conv1D(64, 4, 
+                                    activation=tf.keras.layers.LeakyReLU(),
+                                    strides=2, padding='same', 
+                                    kernel_initializer='glorot_normal',
+                                    use_bias=False)(inputs)
+    #Сворачиваем
+    conv_1_1 = tf.keras.layers.Conv1D(128, 4, 
+                                      activation=tf.keras.layers.LeakyReLU(), 
+                                      strides=2,
+                                      padding='same', 
+                                      kernel_initializer='glorot_normal',
+                                      use_bias=False)(conv_1)
+    batch_norm_1 = tf.keras.layers.BatchNormalization()(conv_1_1)
+
+    #2
+    conv_2 = tf.keras.layers.Conv1D(256, 4, 
+                                    activation=tf.keras.layers.LeakyReLU(), 
+                                    strides=2,
+                                    padding='same', 
+                                    kernel_initializer='glorot_normal',
+                                    use_bias=False)(batch_norm_1)
+    batch_norm_2 = tf.keras.layers.BatchNormalization()(conv_2)
+
+    #3
+    conv_3 = tf.keras.layers.Conv1D(512, 4, 
+                                    activation=tf.keras.layers.LeakyReLU(), 
+                                    strides=2,
+                                    padding='same', 
+                                    kernel_initializer='glorot_normal',
+                                    use_bias=False)(batch_norm_2)
+    batch_norm_3 = tf.keras.layers.BatchNormalization()(conv_3)
+
+    #4
+    conv_4 = tf.keras.layers.Conv1D(512, 4, 
+                                    activation=tf.keras.layers.LeakyReLU(), 
+                                    strides=2,
+                                    padding='same', 
+                                    kernel_initializer='glorot_normal',
+                                    use_bias=False)(batch_norm_3)
+    batch_norm_4 = tf.keras.layers.BatchNormalization()(conv_4)
+
+    #Разворачиваем
+    #1
+    up_1 = tf.keras.layers.Concatenate()([tf.keras.layers.Conv1DTranspose(512, 4, activation='relu', strides=2,
+                                                                          padding='same',
+                                                                          kernel_initializer='glorot_normal',
+                                                                          use_bias=False)(conv_4), conv_3])
+    batch_up_1 = tf.keras.layers.BatchNormalization()(up_1)
+
+    #Добавим Dropout от переобучения
+    batch_up_1 = tf.keras.layers.Dropout(0.25)(batch_up_1, training=True)
+
+    #2
+    up_2 = tf.keras.layers.Concatenate()([tf.keras.layers.Conv1DTranspose(256, 4, activation='relu', strides=2,
+                                                                          padding='same',
+                                                                          kernel_initializer='glorot_normal',
+                                                                          use_bias=False)(batch_up_1), conv_2])
+    batch_up_2 = tf.keras.layers.BatchNormalization()(up_2)
+    batch_up_2 = tf.keras.layers.Dropout(0.25)(batch_up_2, training=True)
+
+
+    #3
+    up_3 = tf.keras.layers.Concatenate()([tf.keras.layers.Conv1DTranspose(128, 4, activation='relu', strides=2,
+                                                                          padding='same',
+                                                                          kernel_initializer='glorot_normal',
+                                                                          use_bias=False)(batch_up_2), conv_1_1])
+    batch_up_3 = tf.keras.layers.BatchNormalization()(up_3)
+    batch_up_3 = tf.keras.layers.Dropout(0.25)(batch_up_3, training=True)
+
+
+    #4
+    up_4 = tf.keras.layers.Concatenate()([tf.keras.layers.Conv1DTranspose(64, 4, activation='relu', strides=2,
+                                                                          padding='same',
+                                                                          kernel_initializer='glorot_normal',
+                                                                          use_bias=False)(batch_up_3), conv_1])
+    batch_up_4 = tf.keras.layers.BatchNormalization()(up_4)
+
+
+    #Выходной слой
+    outputs = tf.keras.layers.Conv1DTranspose(NUM_CLASSES, 4, activation='sigmoid', strides=2,
+                                                   padding='same',
+                                                   kernel_initializer='glorot_normal')(batch_up_4)
+
+    model = tf.keras.Model(inputs=inputs, outputs=outputs)
+    return model
+
+
 def unet_model(POINTS_DIM=1024):
 
     #Входной слой
