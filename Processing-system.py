@@ -11,24 +11,26 @@ from source.NN_environment import process_fragments, get_borders, normalise_seri
 from source.NN_environment import get_prediction_unet
 
 
-def init_proc(filename: str, filepath: str, ckpt_v: int):
-    
-    # filename = "sht44351"
-    # filepath = "C:/Users/f.belous/Work/Projects/D-alpha-instability-search/data/sht/"  # D:/Edu/Lab/D-alpha-instability-search/data/sht/
+def init_proc_multi(filename: str, filepath: str, ckpt_v: int):
     filepath += "\\"
     F_ID = filename[-5:]
     
-    df = read_sht_dalpha(filename, filepath)  # pd.read_csv(signal_path + filename + ".txt", sep=',')  # read_dataFile(interval_path + filename + "_exportGlobus2.dat", F_ID)
-    df = df.rename(columns={"D-alpha_h50": "ch1"})
-    df["ch1_marked"] = 0
-    df["ch1_ai_marked"] = 0
+    df = read_sht_data(filename, filepath, data_name="D-alfa  хорда R=50 cm")
     start_time = time.time()
 
-    # ckpt_v=4
-    df["ch1_ai_marked"] = get_prediction_unet(df["ch1"].to_numpy(), ckpt_v=ckpt_v)  # , old=True
+    predictions = get_prediction_multi_unet(df.ch1.to_numpy(), ckpt_v=ckpt_v)
+
     
-    df["ch1_marked"] = down_to_zero(np.array(df["ch1_ai_marked"]), edge=0.5)
-    df["ch1_marked"] = process_fragments(np.array(df["ch1"]), np.array(df["ch1_marked"]), length_edge=30, scale=1.5)  # old version: length_edge=20, , scale=0
+    df["unsync_ai_marked"] = predictions[0, :]
+    df["sync_ai_marked"] = predictions[1, :]
+    
+    df["unsync_marked"] = down_to_zero(np.array(df["unsync_marked"]), edge=0.5)
+    df["unsync_marked"] = process_fragments(np.array(df["ch1"]), np.array(df["unsync_marked"]), length_edge=30, scale=1.5)  # old version: length_edge=20, , scale=0
+    
+    df["sync_marked"] = down_to_zero(np.array(df["unsync_marked"]), edge=0.5)
+    df["sync_marked"] = process_fragments(np.array(df["ch1"]), np.array(df["unsync_marked"]), length_edge=50, scale=0)  # old version: length_edge=30, , scale=1.5
+    
+    sxr_df = read_sht_data(filename, filepath, data_name="SXR 50 mkm")
     
     to_pack = {
         "D-alpha, chord=50 cm": {
@@ -41,17 +43,17 @@ def init_proc(filename: str, filepath: str, ckpt_v: int):
             'yRes': 0.001,  # ADC resolution: 0.0001 Volt per adc bit
             'y': df.ch1.to_list()
         },
-        "Mark": {
-            'comment': f'ELMs marks (by proc-sys v2.1-1.5scl; {datetime.now().strftime("%d.%m.%Y")})',
+        "SXR 50 mkm": {
+            'comment': f'ADC #4, CH #6, SHOT: #{F_ID}',
             'unit': 'U(V)',
             # 'x': df.t,
             'tMin': df.t.min(),  # minimum time
             'tMax': df.t.max(),  # maximum time
             'offset': 0.0,  # ADC zero level offset
             'yRes': 0.001,  # ADC resolution: 0.0001 Volt per adc bit
-            'y': df.ch1_marked.to_list()
+            'y': sxr_df.ch1.to_list()
         },
-        "AI prediction": {
+        "Unsync ELM AI prediction": {
             'comment': f'Processed NN prediction of ELMs (v{ckpt_v}; trn-on: #44[168|184|194] )',
             'unit': 'U(V)',
             # 'x': df.t,
@@ -59,7 +61,37 @@ def init_proc(filename: str, filepath: str, ckpt_v: int):
             'tMax': df.t.max(),  # maximum time
             'offset': 0.0,  # ADC zero level offset
             'yRes': 0.001,  # ADC resolution: 0.0001 Volt per adc bit
-            'y': df.ch1_ai_marked.to_list()
+            'y': df.unsync_ai_marked.to_list()
+        },
+        "Unsync ELM mark": {
+            'comment': f'ELMs marks (by proc-sys v2.1-1.5scl; {datetime.now().strftime("%d.%m.%Y")})',
+            'unit': 'U(V)',
+            # 'x': df.t,
+            'tMin': df.t.min(),  # minimum time
+            'tMax': df.t.max(),  # maximum time
+            'offset': 0.0,  # ADC zero level offset
+            'yRes': 0.001,  # ADC resolution: 0.0001 Volt per adc bit
+            'y': df.unsync_marked.to_list()
+        },
+        "Sync ELM AI prediction": {
+            'comment': f'Processed NN prediction of ELMs (v{ckpt_v}; trn-on: #44[168|184|194] )',
+            'unit': 'U(V)',
+            # 'x': df.t,
+            'tMin': df.t.min(),  # minimum time
+            'tMax': df.t.max(),  # maximum time
+            'offset': 0.0,  # ADC zero level offset
+            'yRes': 0.001,  # ADC resolution: 0.0001 Volt per adc bit
+            'y': df.sync_ai_marked.to_list()
+        },
+        "Sync ELM mark": {
+            'comment': f'ELMs marks (by proc-sys v2.1-1.5scl; {datetime.now().strftime("%d.%m.%Y")})',
+            'unit': 'U(V)',
+            # 'x': df.t,
+            'tMin': df.t.min(),  # minimum time
+            'tMax': df.t.max(),  # maximum time
+            'offset': 0.0,  # ADC zero level offset
+            'yRes': 0.001,  # ADC resolution: 0.0001 Volt per adc bit
+            'y': df.sync_marked.to_list()
         }
     }
     
