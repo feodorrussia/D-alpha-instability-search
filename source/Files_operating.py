@@ -63,14 +63,14 @@ def load_sht(filepath='D:/Edu/Lab/D-alpha-instability-search/data/sht/', filenam
     return df
 
 
-def read_sht_dalpha(filename: str, filepath: str) -> pd.DataFrame:
+def read_sht_data(filename: str, filepath: str, data_name="D-alfa  хорда R=50 cm") -> pd.DataFrame:
     if ".sht" in filename.lower():
         res = shtRipper.ripper.read(filepath + filename)
     else:
         res = shtRipper.ripper.read(filepath + filename + ".SHT")
 
-    data = np.array([res["D-alfa  хорда R=50 cm"]["x"], res["D-alfa  хорда R=50 cm"]["y"]])
-    dalpha_df = pd.DataFrame(data.transpose(), columns=["t", "D-alpha_h50"])
+    data = np.array([res[data_name]["x"], res[data_name]["y"]])
+    dalpha_df = pd.DataFrame(data.transpose(), columns=["t", "ch1"])
     return dalpha_df
 
 
