@@ -6,8 +6,8 @@ import time
 from datetime import datetime
 
 import shtReader_py.shtRipper as shtRipper
-from source.Files_operating import read_dataFile, read_sht_data
-from source.NN_environment import process_fragments, get_borders, normalise_series, down_to_zero
+from source.Files_operating import read_sht_data
+from source.NN_environment import process_fragments, down_to_zero
 from source.NN_environment import get_prediction_multi_unet
 
 
@@ -20,7 +20,6 @@ def init_proc_multi(filename: str, filepath: str, ckpt_v: int):
 
     predictions = get_prediction_multi_unet(df.ch1.to_numpy(), ckpt_v=ckpt_v)
 
-    
     df["unsync_ai_marked"] = predictions[0, :]
     df["sync_ai_marked"] = predictions[1, :]
     
@@ -105,6 +104,7 @@ def init_proc_multi(filename: str, filepath: str, ckpt_v: int):
     print(f"Took - {round(time.time() - start_time, 2)} s")
     
     df.to_csv(filepath + f"marked/df/{F_ID}_ai_data.csv", index=False)
+
 
 if __name__ == "__main__" and not (sys.stdin and sys.stdin.isatty()):
     # get args from CL
