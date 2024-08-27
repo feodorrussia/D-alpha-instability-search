@@ -164,9 +164,14 @@ def get_prediction_multi_unet(data: np.array, POINTS_DIM=1024, NUM_CLASSES=2, ck
     precision = tf.keras.metrics.Precision()
     recall = tf.keras.metrics.Recall()
     
+    def f1_score(y_true, y_pred):
+        p = precision(y_true, y_pred)
+        r = recall(y_true, y_pred)
+        return 2 * ((p * r) / (p + r + tf.keras.backend.epsilon()))
+    
     model = unet_multi_model(POINTS_DIM, NUM_CLASSES)
     model.compile(optimizer='adam', loss=dice_bce_loss,
-                  metrics=['acc', precision, recall])
+                  metrics=['acc', precision, recall, f1_score])
     model.load_weights(checkpoint_filepath)
     
     l_edge = 0
@@ -193,20 +198,21 @@ def get_prediction_multi_unet(data: np.array, POINTS_DIM=1024, NUM_CLASSES=2, ck
 
 
 def unet_multi_model(POINTS_DIM, NUM_CLASSES):
+    init_relu = tf.keras.initializers.HeUniform()
 
     #Входной слой
     inputs = tf.keras.layers.Input(shape=(POINTS_DIM, 1,))
     conv_1 = tf.keras.layers.Conv1D(64, 4, 
                                     activation=tf.keras.layers.LeakyReLU(),
                                     strides=2, padding='same', 
-                                    kernel_initializer='glorot_normal',
+                                    kernel_initializer=init_relu,
                                     use_bias=False)(inputs)
     #Сворачиваем
     conv_1_1 = tf.keras.layers.Conv1D(128, 4, 
                                       activation=tf.keras.layers.LeakyReLU(), 
                                       strides=2,
                                       padding='same', 
-                                      kernel_initializer='glorot_normal',
+                                      kernel_initializer=init_relu,
                                       use_bias=False)(conv_1)
     batch_norm_1 = tf.keras.layers.BatchNormalization()(conv_1_1)
 
@@ -215,7 +221,7 @@ def unet_multi_model(POINTS_DIM, NUM_CLASSES):
                                     activation=tf.keras.layers.LeakyReLU(), 
                                     strides=2,
                                     padding='same', 
-                                    kernel_initializer='glorot_normal',
+                                    kernel_initializer=init_relu,
                                     use_bias=False)(batch_norm_1)
     batch_norm_2 = tf.keras.layers.BatchNormalization()(conv_2)
 
@@ -224,7 +230,7 @@ def unet_multi_model(POINTS_DIM, NUM_CLASSES):
                                     activation=tf.keras.layers.LeakyReLU(), 
                                     strides=2,
                                     padding='same', 
-                                    kernel_initializer='glorot_normal',
+                                    kernel_initializer=init_relu,
                                     use_bias=False)(batch_norm_2)
     batch_norm_3 = tf.keras.layers.BatchNormalization()(conv_3)
 
@@ -233,7 +239,7 @@ def unet_multi_model(POINTS_DIM, NUM_CLASSES):
                                     activation=tf.keras.layers.LeakyReLU(), 
                                     strides=2,
                                     padding='same', 
-                                    kernel_initializer='glorot_normal',
+                                    kernel_initializer=init_relu,
                                     use_bias=False)(batch_norm_3)
     batch_norm_4 = tf.keras.layers.BatchNormalization()(conv_4)
 
@@ -241,7 +247,7 @@ def unet_multi_model(POINTS_DIM, NUM_CLASSES):
     #1
     up_1 = tf.keras.layers.Concatenate()([tf.keras.layers.Conv1DTranspose(512, 4, activation='relu', strides=2,
                                                                           padding='same',
-                                                                          kernel_initializer='glorot_normal',
+                                                                          kernel_initializer=init_relu,
                                                                           use_bias=False)(conv_4), conv_3])
     batch_up_1 = tf.keras.layers.BatchNormalization()(up_1)
 
@@ -251,7 +257,7 @@ def unet_multi_model(POINTS_DIM, NUM_CLASSES):
     #2
     up_2 = tf.keras.layers.Concatenate()([tf.keras.layers.Conv1DTranspose(256, 4, activation='relu', strides=2,
                                                                           padding='same',
-                                                                          kernel_initializer='glorot_normal',
+                                                                          kernel_initializer=init_relu,
                                                                           use_bias=False)(batch_up_1), conv_2])
     batch_up_2 = tf.keras.layers.BatchNormalization()(up_2)
     batch_up_2 = tf.keras.layers.Dropout(0.25)(batch_up_2, training=True)
@@ -260,7 +266,7 @@ def unet_multi_model(POINTS_DIM, NUM_CLASSES):
     #3
     up_3 = tf.keras.layers.Concatenate()([tf.keras.layers.Conv1DTranspose(128, 4, activation='relu', strides=2,
                                                                           padding='same',
-                                                                          kernel_initializer='glorot_normal',
+                                                                          kernel_initializer=init_relu,
                                                                           use_bias=False)(batch_up_2), conv_1_1])
     batch_up_3 = tf.keras.layers.BatchNormalization()(up_3)
     batch_up_3 = tf.keras.layers.Dropout(0.25)(batch_up_3, training=True)
@@ -269,7 +275,7 @@ def unet_multi_model(POINTS_DIM, NUM_CLASSES):
     #4
     up_4 = tf.keras.layers.Concatenate()([tf.keras.layers.Conv1DTranspose(64, 4, activation='relu', strides=2,
                                                                           padding='same',
-                                                                          kernel_initializer='glorot_normal',
+                                                                          kernel_initializer=init_relu,
                                                                           use_bias=False)(batch_up_3), conv_1])
     batch_up_4 = tf.keras.layers.BatchNormalization()(up_4)
 
