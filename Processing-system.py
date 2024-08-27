@@ -1,7 +1,6 @@
 import os.path
 import sys
 import numpy as np
-import pandas as pd
 import time
 from datetime import datetime
 
@@ -17,6 +16,12 @@ def init_proc_multi(filename: str, filepath: str, ckpt_v_list: list):
     
     df = read_sht_data(filename, filepath, data_name="D-alfa  хорда R=50 cm")
     start_time = time.time()
+
+    if not os.path.exists(filepath + "marked/"):
+        os.mkdir(filepath + "marked/")
+        os.mkdir(filepath + "marked/df/")
+    if not os.path.exists(filepath + "marked/df"):
+        os.mkdir(filepath + "marked/df/")
 
     predictions = get_prediction_multi_unet(df.ch1.to_numpy(), ckpt_v=ckpt_v_list[0])
     if len(ckpt_v_list) > 1:
