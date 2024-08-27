@@ -11,14 +11,18 @@ from source.NN_environment import process_fragments, get_borders, normalise_seri
 from source.NN_environment import get_prediction_multi_unet
 
 
-def init_proc_multi(filename: str, filepath: str, ckpt_v: int):
+def init_proc_multi(filename: str, filepath: str, ckpt_v_list: list):
     filepath += "\\"
     F_ID = filename[-5:]
     
     df = read_sht_data(filename, filepath, data_name="D-alfa  хорда R=50 cm")
     start_time = time.time()
 
-    predictions = get_prediction_multi_unet(df.ch1.to_numpy(), ckpt_v=ckpt_v)
+    predictions = get_prediction_multi_unet(df.ch1.to_numpy(), ckpt_v=ckpt_v_list[0])
+    if len(ckpt_v_list) > 1:
+        for ckpt_v in ckpt_v_list[1:]:
+            predictions += get_prediction_multi_unet(df.ch1.to_numpy(), ckpt_v=ckpt_v)
+        predictions /= len(ckpt_v_list)
 
     
     df["unsync_ai_marked"] = predictions[0, :]
@@ -32,7 +36,7 @@ def init_proc_multi(filename: str, filepath: str, ckpt_v: int):
     
     sxr_df = read_sht_data(filename, filepath, data_name="SXR 50 mkm")
     
-    comment = {"ai_marking": f'Processed NN prediction of ELMs (v{ckpt_v} multiclass model; trn-on: #44[184|194] )',
+    comment = {"ai_marking": f'Processed NN prediction of ELMs (v{ckpt_v_list} assembly multiclass model)',
                "sync_proc_marks": f'Sync ELMs marks (by proc-sys v2.1-0scl; {datetime.now().strftime("%d.%m.%Y")})',
                "unsync_proc_marks": f'Unsync ELMs marks (by proc-sys v2.2-1.5scl; {datetime.now().strftime("%d.%m.%Y")})'}
     
@@ -109,7 +113,7 @@ def init_proc_multi(filename: str, filepath: str, ckpt_v: int):
 if __name__ == "__main__" and not (sys.stdin and sys.stdin.isatty()):
     # get args from CL
     print("Sys args (full filepath | filename | checkpoint version):\n", sys.argv)
-    init_proc_multi(sys.argv[2], sys.argv[1], int(sys.argv[3]))
+    init_proc_multi(sys.argv[2], sys.argv[1], list(map(int, sys.argv[3:])))
 
 else:
     print("Program is supposed to run out from command line.")
