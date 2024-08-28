@@ -41,8 +41,8 @@ def init_proc_multi(filename: str, filepath: str, ckpt_v_list: list):
     sxr_df = read_sht_data(filename, filepath, data_name="SXR 50 mkm")
     
     comment = {"ai_marking": f'Processed NN prediction of ELMs (v{ckpt_v_list} assembly multiclass model)',
-               "sync_proc_marks": f'Sync ELMs marks (by proc-sys v2.1-0scl; {datetime.now().strftime("%d.%m.%Y")})',
-               "unsync_proc_marks": f'Unsync ELMs marks (by proc-sys v2.2-1.5scl; {datetime.now().strftime("%d.%m.%Y")})'}
+               "unsync_proc_marks": f'Unsync ELMs marks (by proc-sys v2.3-1.5scl; {datetime.now().strftime("%d.%m.%Y")})',
+               "sync_proc_marks": f'Sync ELMs marks (by proc-sys v2.3-0scl; {datetime.now().strftime("%d.%m.%Y")})'}
     
     to_pack = {
         "D-alpha, chord=50 cm": {
