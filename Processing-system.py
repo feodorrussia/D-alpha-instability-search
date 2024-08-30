@@ -32,17 +32,17 @@ def init_proc_multi(filename: str, filepath: str, ckpt_v_list: list):
     df["unsync_ai_marked"] = predictions[0, :]
     df["sync_ai_marked"] = predictions[1, :]
     
-    df["unsync_marked"] = down_to_zero(np.array(df["unsync_ai_marked"]), edge=0.5)
-    df["unsync_marked"] = process_fragments(np.array(df["ch1"]), np.array(df["unsync_marked"]), length_edge=30, scale=1.5)  # old version: length_edge=20, , scale=0
+    df["unsync_marked"] = down_to_zero(np.array(df["unsync_ai_marked"]), edge=0.4)
+    df["unsync_marked"] = process_fragments(np.array(df["ch1"]), np.array(df["unsync_marked"]), length_edge=20, scale=1.5)  # old version: length_edge=30, , scale=0
     
-    df["sync_marked"] = down_to_zero(np.array(df["sync_ai_marked"]), edge=0.5)
-    df["sync_marked"] = process_fragments(np.array(df["ch1"]), np.array(df["sync_marked"]), length_edge=30, scale=0)  # old version: length_edge=30, , scale=1.5
+    df["sync_marked"] = down_to_zero(np.array(df["sync_ai_marked"]), edge=0.4)
+    df["sync_marked"] = process_fragments(np.array(df["ch1"]), np.array(df["sync_marked"]), length_edge=25, scale=0)  # old version: length_edge=30, , scale=1.5
     
     sxr_df = read_sht_data(filename, filepath, data_name="SXR 50 mkm")
     
     comment = {"ai_marking": f'Processed NN prediction of ELMs (v{ckpt_v_list} assembly multiclass model)',
-               "sync_proc_marks": f'Sync ELMs marks (by proc-sys v2.1-0scl; {datetime.now().strftime("%d.%m.%Y")})',
-               "unsync_proc_marks": f'Unsync ELMs marks (by proc-sys v2.2-1.5scl; {datetime.now().strftime("%d.%m.%Y")})'}
+               "unsync_proc_marks": f'Unsync ELMs marks (by proc-sys v2.3-1.5scl; {datetime.now().strftime("%d.%m.%Y")})',
+               "sync_proc_marks": f'Sync ELMs marks (by proc-sys v2.3-0scl; {datetime.now().strftime("%d.%m.%Y")})'}
     
     to_pack = {
         "D-alpha, chord=50 cm": {
