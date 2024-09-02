@@ -33,7 +33,7 @@ def init_proc_multi(filename: str, filepath: str, ckpt_v_list: list):
     df["sync_ai_marked"] = predictions[1, :]
     
     df["unsync_marked"] = down_to_zero(np.array(df["unsync_ai_marked"]), edge=0.4)
-    df["unsync_marked"] = process_fragments(np.array(df["ch1"]), np.array(df["unsync_marked"]), length_edge=20, scale=1.5)  # old version: length_edge=30, , scale=0
+    df["unsync_marked"] = process_fragments(np.array(df["ch1"]), np.array(df["unsync_marked"]), length_edge=20, distance_edge=15, scale=1.5)  # old version: length_edge=30, , scale=0
     
     df["sync_marked"] = down_to_zero(np.array(df["sync_ai_marked"]), edge=0.4)
     df["sync_marked"] = process_fragments(np.array(df["ch1"]), np.array(df["sync_marked"]), length_edge=25, scale=0)  # old version: length_edge=30, , scale=1.5
